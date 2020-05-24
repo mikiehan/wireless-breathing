@@ -167,4 +167,31 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
     saveas(figure1,strcat(outputResultDir, '/figures', filename, '.jpg'))
     disp('The index point and last point for dista array')
     index_count, last_index_count, pks_sorted, locs_sorted, f_sorted
+    
+    % first attempt to plot time series (x-axis is in seconds and y axis in meters)
+%     figure2 = figure;
+%     hold on;
+%     [r c] = size(results);
+%     for k=1:r % for kth chirp 
+%         % pick the maximum peak signal
+%         [max_sig, max_index] = max(results(k, index_count:last_index_count));
+%         % get the distance at max index
+%         dist_at_max_sig = dist_new(1, max_index)/2.0;
+%         plot((k-1) * (on + off)/1000, dist_at_max_sig, 'x');
+%     end 
+%     
+%     % second attempt to plot time series (x-axis is in seconds and y axis in meters)
+%     figure3 = figure;
+%     hold on; 
+%     new_results = movmean(results(:, index_count:last_index_count), 5, 1);
+%     [r c] = size(new_results);
+%     for k=1:r % for kth chirp 
+%         % pick the maximum peak signal
+%         [max_sig, max_index] = max(new_results(k,:));
+%         % get the distance at max index
+%         dist_at_max_sig = dist_new(1, max_index)/2.0;
+%         plot((k-1) * (on + off)/1000, dist_at_max_sig, 'x');
+%         %xlim([0 10])
+%         ylim([0.13 0.255])
+%     end 
 end
