@@ -69,7 +69,9 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
         [f,fft1] = plotFFT(prod,Fs);
 
         %apply filter
-        filter= min(fft1)*(ones(1,size(f,2)));filter(:,1000:1400) = 1; filter(:,446:458) = 1;    
+        %filter= min(fft1)*(ones(1,size(f,2)));
+        %filter(:,1000:1400) = 1; 
+        %filter(:,446:458) = 1;    
         results = [results; fft1];
     end
     
@@ -140,6 +142,7 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
     hold on;
     %[pks, locs] = findpeaks(avg_series(1,index_count:last_index_count),'MinPeakProminence',0.7e-4,'Annotate','extents');
     [pks, locs] = findpeaks(norm_series, dist_new./2.0,'Annotate','extents');
+    [pks2, ind] = findpeaks(norm_series);
     min_y = min(norm_series);
     plot(locs,pks,'o');
     
@@ -150,6 +153,7 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
         plot(X, Y);
     end
     [pks_sorted, sort_order] = sort(pks, 'descend');
+    ind_sorted = ind(sort_order);
     locs_sorted = locs(sort_order);
     f_sorted = locs_sorted.*B /(vs * on); 
     %plot(dist_new./2,avg_series(1,index_count:last_index_count)); %, locs, pks, 'o');
@@ -166,7 +170,24 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
 
     saveas(figure1,strcat(outputResultDir, '/figures', filename, '.jpg'))
     disp('The index point and last point for dista array')
-    index_count, last_index_count, pks_sorted, locs_sorted, f_sorted
+    %index_count, last_index_count, pks_sorted, locs_sorted, f_sorted, f, len_chirp
+    size(prod), size(f), size(fft1), f_new
+    
+    figure2 = figure;
+    hold on;
+    [r c] = size(results);
+    for k=1:r % for kth chirp 
+        % pick the maximum peak signal
+        trimmed_result = results(k, index_count:last_index_count)./max(results(k, index_count:last_index_count));
+        
+        if(abs(pks_sorted(1) - trimmed_result(1, ind_sorted(1))) < 0.01)
+            plot((k-1) * (on + off)/1000, locs_sorted(1), 'x');
+        end 
+            
+        if(abs(pks_sorted(2) - trimmed_result(1, ind_sorted(2))) < 0.01)
+            plot((k-1) * (on + off)/1000, locs_sorted(2), 'o');
+        end         
+    end 
     
     % first attempt to plot time series (x-axis is in seconds and y axis in meters)
 %     figure2 = figure;
@@ -194,4 +215,8 @@ function rx_FMCW_param(Fs, fmin, B, on, off, start_distance_range, dist_range, f
 %         %xlim([0 10])
 %         ylim([0.13 0.255])
 %     end 
+    % third attempt 
+%     figure4 = figure;
+%     hold on; 
+    %
 end
