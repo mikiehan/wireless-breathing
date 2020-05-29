@@ -1,5 +1,4 @@
 
-
 filepathPrefix = strcat('/Users/profhan/Downloads/Wireless_Networking_UT-master/');
 filepathRX = strcat(filepathPrefix, 'Passive_Recording');
 %filename = strcat('heart_on_skin_2min');
@@ -8,6 +7,7 @@ filename = strcat('left_wrist_no_breath');
 
 [Rx,Fs] = audioread(strcat(filepathRX,'/',filename,'.wav'));
 Rx = Rx(2*Fs:length(Rx)); % remove a few initial points
+
 % Step 1-1. Apply 5th Order Butterworth Low Pass Filter 
 fc = 25; % cut off frequency in Hz
 Wn = fc/(Fs/2); % Fs/2 is the nyquist frequency
@@ -31,8 +31,12 @@ figure;
 plot(0:size(Rx)-1, Rx);
 xlim([0 fs*3]); % plot just 10 seconds 
 
-% Step 1-2.5 (?) Apply Blackman window (sample size of 256??)
-M = length(Rx);
+% Step 1-2.5 (?) Apply Blackman window (sample size of 256??). 
+% Should it be here before K-means?
+% Paper says "The power spectrum of the acoustic pulse signal with a downsampled frequency of 210 Hz 
+% is calculated in the algorithm using a Blackman window of 32 samples (approximately 150 milliseconds) 
+% with an overlap of 50% between successive frames."
+M = length(Rx); 
 w = .42-.5*cos(2*pi*(0:M-1)/(M-1))+.08*cos(4*pi*(0:M-1)/(M-1));
 Rx = Rx.*w;
 
@@ -78,6 +82,8 @@ xlim([0 fs * 3]);
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
 % Step 2-1. Short time Fourier Transform
-psd = stft(Rx_trimmed, fs);
-p_max = max(psd); 
+[f, psd] = plotSTFT(Rx_trimmed, fs); % psd single-sided amplitue
+p_max = max(psd); % 2.5e-24 (seems too small)
+figure;
+plot(f, psd);
 
