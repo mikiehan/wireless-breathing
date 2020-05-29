@@ -78,6 +78,6 @@ xlim([0 fs * 3]);
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
 % Step 2-1. Short time Fourier Transform
-psd = STFT(Rx_trimmed, fs);
+psd = stft(Rx_trimmed, fs);
 p_max = max(psd); 
 
