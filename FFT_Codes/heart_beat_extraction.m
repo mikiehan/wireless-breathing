@@ -72,15 +72,16 @@ plot(Rx_trimmed);
 xlim([0 fs * 3]);
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
-% Step 2-0. Blackman window of 32 samples with 50% overlap 
-M = 32; 
+% Step 2-0. Blackman window of 64 samples with 50% overlap 
+% (With 441Hz this provides 145 millisec time resolution)
+% (paper suggests 150 millisec time resolution)
+M = 64; 
 w = .42-.5*cos(2*pi*(0:M-1)/(M-1))+.08*cos(4*pi*(0:M-1)/(M-1));
 n_windows = floor(length(Rx_trimmed) / (M/2));
 Rx_trimmed = Rx_trimmed(1:n_windows * (M/2));
 for i = 1:n_windows
     start = (i-1)* (M/2) + 1;
     finish = (i-1)* (M/2) + M;
-    disp('start'); disp(start); disp('finish'); disp(finish);
     if(finish <= length(Rx_trimmed))
         Rx_samples = Rx_trimmed(start:finish);
         Rx_trimmed(start:finish) = Rx_samples'.* w';
@@ -91,7 +92,8 @@ end
 
 % Step 2-1. Short time Fourier Transform
 [f, psd] = plotSTFT(Rx_trimmed, fs); % psd single-sided amplitue
-p_max = max(psd); %  (seems too small)
+p_max = max(psd); %  1.6235e-08 (seems too small)
+p_max_db = mag2db(p_max) % -155.7907 dB (isn't this too small)
 figure;
 plot(f, psd);
 % Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
