@@ -31,15 +31,6 @@ figure;
 plot(0:size(Rx)-1, Rx);
 xlim([0 fs*3]); % plot just 10 seconds 
 
-% Step 1-2.5 (?) Apply Blackman window (sample size of 256??). 
-% Should it be here before K-means?
-% Paper says "The power spectrum of the acoustic pulse signal with a downsampled frequency of 210 Hz 
-% is calculated in the algorithm using a Blackman window of 32 samples (approximately 150 milliseconds) 
-% with an overlap of 50% between successive frames."
-M = length(Rx); 
-w = .42-.5*cos(2*pi*(0:M-1)/(M-1))+.08*cos(4*pi*(0:M-1)/(M-1));
-Rx = Rx.*w;
-
 % Step 1-3. K-means method to remove artifacts
 block = 5; % signal block of 5 seconds
 num_blocks = floor(size(Rx)/fs/block);
@@ -68,22 +59,41 @@ for i = 1:num_blocks % for each block
             if(idx(j) ~= C) % skip this signal part
                 Sn(j) = 1; 
             else % do not skip 
-                Rx_trimmed = [Rx_trimmed y_j];
+                Rx_trimmed = [Rx_trimmed; y_j];
             end 
         else % do not skip
-            Rx_trimmed = [Rx_trimmed y_j];
+            Rx_trimmed = [Rx_trimmed; y_j];
         end 
     end    
 end
-
+Rx_trimmed = Rx_trimmed';
 figure;
 plot(Rx_trimmed);
 xlim([0 fs * 3]);
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
+% Step 2-0. Blackman window of 32 samples with 50% overlap 
+M = 32; 
+w = .42-.5*cos(2*pi*(0:M-1)/(M-1))+.08*cos(4*pi*(0:M-1)/(M-1));
+n_windows = floor(length(Rx_trimmed) / (M/2));
+Rx_trimmed = Rx_trimmed(1:n_windows * (M/2));
+for i = 1:n_windows
+    start = (i-1)* (M/2) + 1;
+    finish = (i-1)* (M/2) + M;
+    disp('start'); disp(start); disp('finish'); disp(finish);
+    if(finish <= length(Rx_trimmed))
+        Rx_samples = Rx_trimmed(start:finish);
+        Rx_trimmed(start:finish) = Rx_samples'.* w';
+    else
+        Rx_trimmed = Rx_trimmed(1:finish - M/2);
+    end 
+end 
+
 % Step 2-1. Short time Fourier Transform
 [f, psd] = plotSTFT(Rx_trimmed, fs); % psd single-sided amplitue
-p_max = max(psd); % 2.5e-24 (seems too small)
+p_max = max(psd); %  (seems too small)
 figure;
 plot(f, psd);
+% Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
+% How to get dB? 
 
