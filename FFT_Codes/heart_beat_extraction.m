@@ -1,8 +1,10 @@
 
 filepathPrefix = strcat('/Users/profhan/Downloads/Wireless_Networking_UT-master/');
 filepathRX = strcat(filepathPrefix, 'Passive_Recording');
+%filename = strcat('heart_on_skin_external_mic_8000fs');
 %filename = strcat('heart_on_skin_2min');
-filename = strcat('left_wrist_no_breath');
+filename = strcat('left_wrist_8000fs_1');
+%filename = strcat('left_wrist_no_breath');
 
 
 [Rx,Fs] = audioread(strcat(filepathRX,'/',filename,'.wav'));
@@ -22,10 +24,14 @@ ylim([0 0.1]);
 %xlim([0.2 1]);
 
 % Step 1-2. Downsampling by n
-n = 100; % downsampling by 100 (411 Hz)
+n = 40; % downsampling by 40 (8000/40 = 200 Hz)
 Rx = downsample(Rx, n);
 fs = Fs/n; % decreased sampling rate
 Rx = Rx(1:floor(size(Rx)/fs) * fs);
+
+% spectrogram after downsampling
+figure;
+spectrogram(Rx, fs, [], [], fs, 'yaxis');
 
 figure;
 plot(0:size(Rx)-1, Rx);
@@ -69,33 +75,55 @@ end
 Rx_trimmed = Rx_trimmed';
 figure;
 plot(Rx_trimmed);
-xlim([0 fs * 3]);
+xlim([0 fs * 5]);
+
+% spectrogram after K-means
+figure;
+spectrogram(Rx_trimmed, fs, [], [], fs, 'yaxis');
+
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
-% Step 2-0. Blackman window of 64 samples with 50% overlap 
-% (With 441Hz this provides 145 millisec time resolution)
+% Step 2-1. Short time Fourier Transform with blackman window of 32 samples
+% with 50 percent overlab 
+% (with 200Hz this provides 160 millisec time resolution)
 % (paper suggests 150 millisec time resolution)
-M = 64; 
-w = .42-.5*cos(2*pi*(0:M-1)/(M-1))+.08*cos(4*pi*(0:M-1)/(M-1));
-n_windows = floor(length(Rx_trimmed) / (M/2));
-Rx_trimmed = Rx_trimmed(1:n_windows * (M/2));
-for i = 1:n_windows
-    start = (i-1)* (M/2) + 1;
-    finish = (i-1)* (M/2) + M;
-    if(finish <= length(Rx_trimmed))
-        Rx_samples = Rx_trimmed(start:finish);
-        Rx_trimmed(start:finish) = Rx_samples'.* w';
-    else
-        Rx_trimmed = Rx_trimmed(1:finish - M/2);
-    end 
-end 
+M = 32; 
+win = blackman(M, 'periodic'); % blackman window
+L = 200; % fft length
+[ss, ff, tt] = stft(Rx_trimmed, fs, 'Window', win,'OverlapLength',(M/2), 'FFTLength' , L);
+% make single sided amplitude
+ff = ff(L/2:end); 
+ss = abs(ss/L);
+ss = ss(1:floor(L/2)+1,:);
+ss(2:end-1,:) = 2 * ss(2:end-1, :); 
+% translate into dB
+psd_db = mag2db(ss); 
+max_psd = max(max(psd_db));
 
-% Step 2-1. Short time Fourier Transform
-[f, psd] = plotSTFT(Rx_trimmed, fs); % psd single-sided amplitue
-p_max = max(psd); %  1.6235e-08 (seems too small)
-p_max_db = mag2db(p_max) % -155.7907 dB (isn't this too small)
+% spectrogram with blackman window 
 figure;
-plot(f, psd);
-% Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
-% How to get dB? 
+spectrogram(Rx_trimmed, win, M/2, L, fs, 'yaxis', 'onesided');
+xlim([0 5]);
 
+% Step 2-2. Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17]
+% where m is the number of groupings in 5 sec duration
+% for db_thresh = 5:10 
+%     % how to choose freq? (freq with max psd? only a few freq range?) 
+%     for f = 1:length(ff) % just do all freq??
+%         t_idx = find(psd_db(f,1:fs*5) >= (max_psd(f,:) - db_thresh)); % contains index's with higher psd value
+%         % extract t_start_m t_end_m pairs 
+%         for m = 4:17
+%         end 
+%     end 
+% end 
+% % 
+% % 
+% % 
+% % figure;
+% % plot(f, psd);
+% % % Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
+% % % How to get dB? 
+% % 
+% % % We know HR ranges from 40 to 200 bpm which corresponds to 
+% % % 1500 milisec - 300 milisec beat-to-beat interval 
+% % min_b2b_interval = 300; 
