@@ -1,11 +1,12 @@
 
 filepathPrefix = strcat('/Users/profhan/Downloads/Wireless_Networking_UT-master/');
 filepathRX = strcat(filepathPrefix, 'Passive_Recording');
-%filename = strcat('heart_on_skin_external_mic_8000fs');
+filename = strcat('heart_on_skin_external_mic_8000fs');
+%filename = strcat('heart_on_skin_external_mic_8000fs_2');
 %filename = strcat('heart_on_skin_2min');
-filename = strcat('left_wrist_8000fs_1');
+%filename = strcat('left_wrist_8000fs_1');
 %filename = strcat('left_wrist_no_breath');
-
+%filename = strcat('heart_1cm_external_mic_8000fs');
 
 [Rx,Fs] = audioread(strcat(filepathRX,'/',filename,'.wav'));
 Rx = Rx(2*Fs:length(Rx)); % remove a few initial points
@@ -72,15 +73,40 @@ for i = 1:num_blocks % for each block
         end 
     end    
 end
+
 Rx_trimmed = Rx_trimmed';
+total_samples = length(Rx_trimmed);
+duration = total_samples/fs;
+
 figure;
 plot(Rx_trimmed);
-xlim([0 fs * 5]);
+findpeaks(Rx_trimmed,'Annotate','extents');
+%xlim([0 fs * 5]);
+
+total_samples = length(Rx_trimmed);
+duration = total_samples/fs;
+max_num_peaks = duration/0.30; % min beat-to-beat interval is 300 milisec 
+[pks, locs]= findpeaks(Rx_trimmed);
+[sorted_pks, sorted_idx] = sort(pks, 'descend');
+sorted_pks_s = sorted_pks(1:max_num_peaks);
+sorted_idx_s = sorted_idx(1:max_num_peaks);
+
+figure;
+hold on;
+plot([1:total_samples], Rx_trimmed);
+plot(locs(sorted_idx_s), sorted_pks_s, 'o');
+xlim([0 fs*10]); % 10 sec
+
+figure;
+hold on;
+plot([1:total_samples]/fs, Rx_trimmed);
+plot(locs(sorted_idx_s)/fs, sorted_pks_s, 'o');
+xlim([0 5]);
+%plot(sorted_pks,'o'); 
 
 % spectrogram after K-means
 figure;
 spectrogram(Rx_trimmed, fs, [], [], fs, 'yaxis');
-
 
 % Step 2. S1 sound extraction from clean acoustic pulse signal
 % Step 2-1. Short time Fourier Transform with blackman window of 32 samples
@@ -94,10 +120,13 @@ L = 200; % fft length
 % make single sided amplitude
 ff = ff(L/2:end); 
 ss = abs(ss/L);
-ss = ss(1:floor(L/2)+1,:);
+ss = ss(L/2:end,:);
 ss(2:end-1,:) = 2 * ss(2:end-1, :); 
 % translate into dB
 psd_db = mag2db(ss); 
+[max_mean, freq_row] = max(mean(psd_db,2)); % calculate avg psd across time and select freq with max
+freq_selected = ff(freq_row); 
+
 max_psd = max(max(psd_db));
 
 % spectrogram with blackman window 
@@ -105,25 +134,60 @@ figure;
 spectrogram(Rx_trimmed, win, M/2, L, fs, 'yaxis', 'onesided');
 xlim([0 5]);
 
-% Step 2-2. Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17]
-% where m is the number of groupings in 5 sec duration
-% for db_thresh = 5:10 
-%     % how to choose freq? (freq with max psd? only a few freq range?) 
-%     for f = 1:length(ff) % just do all freq??
-%         t_idx = find(psd_db(f,1:fs*5) >= (max_psd(f,:) - db_thresh)); % contains index's with higher psd value
-%         % extract t_start_m t_end_m pairs 
-%         for m = 4:17
-%         end 
-%     end 
-% end 
-% % 
-% % 
-% % 
-% % figure;
-% % plot(f, psd);
-% % % Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
-% % % How to get dB? 
-% % 
-% % % We know HR ranges from 40 to 200 bpm which corresponds to 
-% % % 1500 milisec - 300 milisec beat-to-beat interval 
-% % min_b2b_interval = 300; 
+% Step 2-2. Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[3,14]
+% where m is the number of groupings in 4 sec duration (in actual paper it
+% is 5 seconds)
+block = 4; 
+time_grid = (M/2)/fs;
+n_blocks = floor(tt(end)/block);
+m_min = ceil(40/60*block); % 3
+m_max = ceil(200/60*block); % 14
+
+groups_all = [];
+for db_thresh = 5:12
+    b = 1;
+    valid = true;
+    groups_thresh = [];
+    while (valid && b <= n_blocks)
+        groups_block = [];
+        % the interval is from [(b-1)* block , b * block] seconds
+        t_start = (b-1) * block/time_grid + 1;
+        t_end = b * block/time_grid;
+       
+        time_grids_idx = find(psd_db(freq_row,t_start:t_end) >= max_psd - db_thresh); 
+        time_grids_idx(end + 1) = -1; % adds new endpoint to very end so code picks up end of last group of consecutive values
+        diff_idx = find(diff(time_grids_idx)~=1);
+        if(~isempty(diff_idx))
+            i_start = 1;
+            for i = diff_idx(1:end)
+                if (i_start ~= i) 
+                    groups_block = [groups_block ; db_thresh (time_grids_idx(i_start) + t_start - 1) (time_grids_idx(i) + t_start - 1)];
+                end
+                i_start = i + 1;
+            end 
+        end
+        n_groups = size(groups_block, 1);
+        if(n_groups >= m_min && n_groups <= m_max)
+            groups_thresh = [groups_thresh; groups_block];
+        else
+            disp(groups_block);
+            groups_thresh = []; % clear out groups for this threshold
+            valid = false;
+        end
+        b = b + 1; % increment b 
+    end
+    if(valid)
+        groups_all = [groups_all ; groups_thresh];
+    end
+end 
+% % % 
+% % % 
+% % % 
+% % % figure;
+% % % plot(f, psd);
+% % % % Extract grids with P ≥ Pmax − Pt, where Pt∈[5,10]dB such that m∈[4,17].
+% % % % How to get dB? 
+% % % 
+% % % % We know HR ranges from 40 to 200 bpm which corresponds to 
+% % % % 1500 milisec - 300 milisec beat-to-beat interval 
+% % % min_b2b_interval = 300; 
